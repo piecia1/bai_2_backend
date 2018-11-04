@@ -114,7 +114,7 @@ def login():
             failed_login=cur.fetchone()
             failed_attemps_login, block_after=failed_login[0], failed_login[1]
             if(failed_attemps_login>=block_after):
-                return jsonify('Twoje konto jest zablokowane')
+                return jsonify({'info':'Twoje konto jest zablokowane'})
             # 2 sprawdzamy czy uzytkownik moze wykonac kolejna probe logowania
             sql='SELECT last_failed_login FROM fake_users WHERE name=:name'
             cur.prepare(sql)
@@ -140,10 +140,10 @@ def login():
                 wait_time=last_failed_login+datetime.timedelta(hours=1)
                 wait_seconds=10000 #nie uzywane
             else:
-                return jsonify('Twoje konto jest zablokowane')
+                return jsonify({'info':'Twoje konto jest zablokowane'})
             if(wait_time > actual_time):
                 diffrence_time = wait_time - actual_time
-                return jsonify({'info' : 'Musisz poczekac','time' : str(diffrence_time)})
+                return jsonify({'info' : 'Musisz poczekac','time' : diffrence_time.total_seconds()})
             else:
                 # 3 - zwiekszamy liczbe prob logowan o 1 (failed_attemps_login)
                 bind={'name' : login, 'last_failed_login' : actual_time}
@@ -154,7 +154,7 @@ def login():
                 failed_attemps_login=failed_attemps_login+1
                 # 3 - sprawdzamy czy nie była to ostatnia próba logowania
                 if(failed_attemps_login==block_after):
-                    return jsonify('Twoje konto zostało zablokowane')
+                    return jsonify({'info':'Twoje konto zostało zablokowane'})
                 else:
                     return jsonify({'info':'Niepoprawny login lub hasło','time':wait_seconds})
     else:
@@ -168,7 +168,7 @@ def login():
         failed_login=cur.fetchone()
         failed_attemps_login, block_after=failed_login[0], failed_login[1]
         if(failed_attemps_login>=block_after):
-            return jsonify('Twoje konto jest zablokowane')
+            return jsonify({'info':'Twoje konto jest zablokowane'})
         # 2 sprawdzamy czy uzytkownik moze wykonac kolejna probe logowania
         sql='SELECT last_failed_login FROM users2 WHERE name=:name'
         cur.prepare(sql)
@@ -198,10 +198,10 @@ def login():
             wait_time=last_failed_login+datetime.timedelta(hours=1)
             wait_seconds=10000 #nie uzywane
         else:
-            return jsonify('Twoje konto jest zablokowane')
+            return jsonify({'info':'Twoje konto jest zablokowane'})
         if(wait_time > actual_time):
             diffrence_time = wait_time - actual_time
-            return jsonify({'info' : 'Musisz poczekac','time' : str(diffrence_time)})
+            return jsonify({'info' : 'Musisz poczekac','time' : diffrence_time.total_seconds()})
         else:
             check_user=checkUser(cur,login,password)
             if(not check_user):
@@ -214,11 +214,25 @@ def login():
                 failed_attemps_login=failed_attemps_login+1
                 # 3 - sprawdzamy czy nie była to ostatnia próba logowania
                 if(failed_attemps_login==block_after):
-                    return jsonify('Twoje konto zostało zablokowane')
+                    return jsonify({'info':'Twoje konto zostało zablokowane'})
                 else:
                     return jsonify({'info':'Niepoprawny login lub hasło','time':wait_seconds})
             else:
-                return jsonify('Jestes zalogowany')
+                #poprawne logowanie
+                bind={'name':login}
+                sql='SELECT * FROM users2 WHERE name=:name'
+                cur.prepare(sql)
+                cur.execute(sql,bind)
+                correct_user=cur.fetchone()
+                bind={'name':login,'last_login':actual_time}
+                sql='UPDATE users2 SET failed_attemps_login = 0,last_login=:last_login WHERE name=:name'
+                cur.prepare(sql)
+                cur.execute(sql,bind)
+                con.commit()
+                return jsonify({'name':correct_user[1],'last_login':correct_user[3],'last_failed_login':correct_user[4],
+                                'failed_attemps_login':correct_user[5],'block_after':correct_user[6]})
+
+
 def checkUserByLogin(cur,login):
     bind = {'login': login}
     sql = 'select * from users2 where name = :login'
