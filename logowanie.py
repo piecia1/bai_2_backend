@@ -89,8 +89,11 @@ Logowanie - zwracany json dla zalogowanego użytkownika
 def login():
     auth = request.authorization
     if(not auth):
-        abort(make_response('Nie przeslales danych do logowania'))
+        return jsonify({'info':'Nie przeslales danych do logowania'})
     login,password=auth.username, auth.password
+    # dodana czesc aby nie zapisywac null
+    if((not login) or (not password)):
+        return jsonify({'info':'Niepoprawny login lub hasło'})
     con = cx_Oracle.connect(database_url)
     cur = con.cursor()
     check_user_by_login=checkUserByLogin(cur,login)
@@ -248,23 +251,28 @@ def changeOption():
     check_user = checkUser(cur,login,password)
     if( not check_user):
         return jsonify({'info':'Nieporawny login lub hasło'})
-    else:
-        block_after=int(request.args.get('par'))
-        if(block_after < 3 or block_after > 7):
-            return jsonify({'info' : 'Nieprawidłowy zakres'})
+    else:     
+        # dodana czesc gdy nie podano parametru
+        block_after=request.args.get('par')
+        if(not block_after):
+            return jsonify({'info':'Brak parametru'})
         else:
-            bind ={'name' : login, 'block_after' : block_after}
-            sql = 'UPDATE users2 SET block_after =: block_after WHERE name =: name'
-            cur.prepare(sql)
-            cur.execute(sql,bind)
-            con.commit()
-            bind={'name':login}
-            sql='SELECT * FROM users2 WHERE name =: name'
-            cur.prepare(sql)
-            cur.execute(sql,bind)
-            correct_user=cur.fetchone()
-            return jsonify({'name':correct_user[1],'last_login':correct_user[3],'last_failed_login':correct_user[4],
-                            'failed_attemps_login':correct_user[5],'block_after':correct_user[6]})
+            block_after=int(block_after)
+            if(block_after < 3 or block_after > 7):
+                return jsonify({'info' : 'Nieprawidłowy zakres'})
+            else:
+                bind ={'name' : login, 'block_after' : block_after}
+                sql = 'UPDATE users2 SET block_after =: block_after WHERE name =: name'
+                cur.prepare(sql)
+                cur.execute(sql,bind)
+                con.commit()
+                bind={'name':login}
+                sql='SELECT * FROM users2 WHERE name =: name'
+                cur.prepare(sql)
+                cur.execute(sql,bind)
+                correct_user=cur.fetchone()
+                return jsonify({'name':correct_user[1],'last_login':correct_user[3],'last_failed_login':correct_user[4],
+                                'failed_attemps_login':correct_user[5],'block_after':correct_user[6]})
 
 
 def checkUserByLogin(cur,login):
